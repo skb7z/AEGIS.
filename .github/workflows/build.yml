@@ -1,0 +1,59 @@
+name: Build Aegis APK
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: aegis-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Restore cached debug keystore
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: aegis-debug-keystore-v1
+
+      - name: Prepare signing key
+        env:
+          DEBUG_KEYSTORE_B64: ${{ secrets.DEBUG_KEYSTORE_B64 }}
+        run: |
+          mkdir -p ~/.android
+          if [ -n "$DEBUG_KEYSTORE_B64" ]; then
+            echo "$DEBUG_KEYSTORE_B64" | base64 -d > ~/.android/debug.keystore
+          fi
+          if [ ! -f ~/.android/debug.keystore ]; then
+            keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android \
+              -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
+          echo "=== Register this SHA-1 in Google Cloud (Android OAuth client) ==="
+          keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey \
+            -storepass android -keypass android | grep -E "SHA1|SHA256"
+
+      - name: Bootstrap project
+        run: bash tool/bootstrap.sh
+
+      - name: Build ONE release APK (arm + arm64, all phones)
+        run: flutter build apk --release --target-platform android-arm,android-arm64
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Aegis-APK
+          path: build/app/outputs/flutter-apk/app-release.apk
