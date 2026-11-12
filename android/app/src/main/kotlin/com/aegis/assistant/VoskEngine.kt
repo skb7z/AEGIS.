@@ -64,7 +64,7 @@ object VoskEngine {
     @Synchronized
     fun shutdown() {
         pause()
-        try { model?.close() } catch (_: Exception) {}
+        try { model?.close() } catch (_: Throwable) {}
         model = null
         status = "idle"
     }
@@ -73,9 +73,14 @@ object VoskEngine {
         try {
             speech?.stop()
             speech?.shutdown()
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
         }
         speech = null
+    }
+
+    private fun fail(t: Throwable) {
+        val root = generateSequence(t) { it.cause }.last()
+        updateStatus("error: ${t.javaClass.simpleName}: ${t.message ?: root.message ?: ""}")
     }
 
     private fun begin(app: Context, mode: Mode) {
@@ -88,8 +93,9 @@ object VoskEngine {
             val s = SpeechService(rec, 16000.0f)
             s.startListening(listener(app, mode))
             speech = s
+            updateStatus("ready")
         } catch (e: Throwable) {
-            updateStatus("error: ${e.message}")
+            fail(e)
         }
     }
 
@@ -97,7 +103,9 @@ object VoskEngine {
         override fun onPartialResult(hypothesis: String?) = check(hypothesis, app, mode)
         override fun onResult(hypothesis: String?) = check(hypothesis, app, mode)
         override fun onFinalResult(hypothesis: String?) = check(hypothesis, app, mode)
-        override fun onError(exception: Exception?) { updateStatus("error: ${exception?.message}") }
+        override fun onError(exception: Exception?) {
+            updateStatus("error: ${exception?.javaClass?.simpleName}: ${exception?.message}")
+        }
         override fun onTimeout() {}
     }
 
@@ -154,7 +162,7 @@ object VoskEngine {
                 main.post { wantMode?.let { begin(app, it) } }
             } catch (t: Throwable) {
                 loading = false
-                updateStatus("error: ${t.message}")
+                fail(t)
             }
         }.start()
     }
