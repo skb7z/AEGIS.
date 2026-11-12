@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="aegis_accessibility_desc">AEGIS uses this only to perform actions you ask for (Back, Home, Recents) and to know when an app you whitelisted is in front. It never reads screen content.</string>
+</resources>
