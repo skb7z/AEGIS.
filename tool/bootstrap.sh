@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Generates the Flutter/Gradle scaffolding matching the installed Flutter SDK, merges it
 # UNDER the custom AEGIS android sources (never overwrites them), patches the app module
-# (minSdk 26 + Vosk), fetches the Vosk model and builds the launcher icon.
+# (minSdk 26 + Vosk + Firebase), fetches the Vosk model and builds the launcher icon.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -38,6 +38,58 @@ dependencies {
 }
 GRADLE
   fi
+fi
+
+echo "==> Firebase (email login)"
+if [ -f android/app/google-services.json ]; then
+  python3 - <<'PY'
+import os, re
+
+def read(p):
+    with open(p, encoding="utf-8") as f:
+        return f.read()
+
+def write(p, s):
+    with open(p, "w", encoding="utf-8") as f:
+        f.write(s)
+
+# 1) declare the plugin version in settings.gradle(.kts)
+for p in ("android/settings.gradle.kts", "android/settings.gradle"):
+    if not os.path.exists(p):
+        continue
+    s = read(p)
+    if "com.google.gms.google-services" in s:
+        break
+    kts = p.endswith(".kts")
+    line = ('    id("com.google.gms.google-services") version "4.4.2" apply false\n'
+            if kts else
+            '    id "com.google.gms.google-services" version "4.4.2" apply false\n')
+    n, c = re.subn(r"(\nplugins\s*\{\n)", lambda m: m.group(1) + line, s, count=1)
+    if c:
+        write(p, n)
+    break
+
+# 2) apply it in the app module
+for p in ("android/app/build.gradle.kts", "android/app/build.gradle"):
+    if not os.path.exists(p):
+        continue
+    s = read(p)
+    if "com.google.gms.google-services" in s:
+        break
+    kts = p.endswith(".kts")
+    line = ('    id("com.google.gms.google-services")\n'
+            if kts else
+            '    id "com.google.gms.google-services"\n')
+    n, c = re.subn(r'(\n[ \t]*id\(?\s*"dev\.flutter\.flutter-gradle-plugin"\s*\)?[^\n]*\n)',
+                   lambda m: m.group(1) + line, s, count=1)
+    if c:
+        write(p, n)
+    break
+PY
+  grep -q "google-services" android/settings.gradle* && grep -q "google-services" android/app/build.gradle* \
+    && echo "Firebase plugin applied" || echo "WARNING: could not patch Firebase plugin (email login will be hidden)"
+else
+  echo "android/app/google-services.json not found - email login will be hidden"
 fi
 
 echo "==> Vosk wake-word model"
