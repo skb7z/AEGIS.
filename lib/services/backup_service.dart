@@ -8,8 +8,9 @@ import 'package:googleapis/drive/v3.dart' as drive;
 import '../core/settings.dart';
 import 'auth_service.dart';
 
-/// Backs up profile + settings to the hidden Google Drive app folder of the signed-in account and
-/// restores them after a reinstall. Never throws; if Drive fails, the app keeps working locally.
+/// Backs up profile + settings to the hidden Google Drive app folder of the signed-in Google account
+/// and restores them after a reinstall. Email/password accounts have no Drive access, so they are
+/// skipped. Never throws; if Drive fails, the app keeps working locally.
 ///
 /// Order matters: after sign-in we RESTORE first and only then start backing up, so an empty fresh
 /// install can never overwrite the cloud copy.
@@ -30,7 +31,7 @@ class BackupService {
   String _lastSent = '';
 
   void _onChange() {
-    if (_auth.status != AuthStatus.signedIn) {
+    if (!_auth.canUseDrive) {
       _ready = false;
       return;
     }
@@ -88,14 +89,14 @@ class BackupService {
       _restoring = false;
       _retry?.cancel();
       _retry = Timer(const Duration(seconds: 45), () {
-        if (_auth.status == AuthStatus.signedIn && !_ready && !_restoring) unawaited(_restore());
+        if (_auth.canUseDrive && !_ready && !_restoring) unawaited(_restore());
       });
     }
   }
 
   /// Uploads the current profile + settings (skipped when nothing changed).
   Future<void> backup() async {
-    if (!_ready || _auth.status != AuthStatus.signedIn) return;
+    if (!_ready || !_auth.canUseDrive) return;
     try {
       final body = jsonEncode({
         'v': 1,
