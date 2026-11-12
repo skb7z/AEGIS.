@@ -31,7 +31,7 @@ class SttService {
           if (s == 'done' || s == 'notListening') {
             // Ignore stale status events that arrive right after a new session starts.
             if (DateTime.now().difference(_startedAt).inMilliseconds < 800) return;
-            Future<void>.delayed(const Duration(milliseconds: 350), _finish);
+            Future<void>.delayed(const Duration(milliseconds: 250), _finish);
           }
         },
       );
@@ -76,8 +76,8 @@ class SttService {
           if (r.finalResult) _finish();
         },
         localeId: _localeFor(lang),
-        listenFor: const Duration(seconds: 25),
-        pauseFor: const Duration(seconds: 3),
+        listenFor: const Duration(seconds: 20),
+        pauseFor: const Duration(seconds: 2),
         listenOptions: st.SpeechListenOptions(
           partialResults: true,
           cancelOnError: false,
@@ -89,7 +89,7 @@ class SttService {
       _c = null;
       throw const ApiFailure('stt_unavailable');
     }
-    final guard = Timer(const Duration(seconds: 30), _finish);
+    final guard = Timer(const Duration(seconds: 25), _finish);
     try {
       return (await c.future).trim();
     } finally {
