@@ -23,7 +23,8 @@ Future<void> main() async {
     await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     await AppServices.create();
     runApp(const AegisApp());
-    unawaited(S.auth.init());
+    // Firebase first (email login), then restore the saved session.
+    unawaited(AuthService.initFirebase().then((_) => S.auth.init()));
     unawaited(S.assistant.init());
   }, (e, s) => debugPrint('Zone error: $e'));
 }
