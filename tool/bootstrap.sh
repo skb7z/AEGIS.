@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Generates the Flutter/Gradle scaffolding matching the installed Flutter SDK, merges it
 # UNDER the custom AEGIS android sources (never overwrites them), patches the app module
-# (minSdk 26 + Vosk + Firebase), fetches the Vosk model and builds the launcher icon.
+# (minSdk 26 + Vosk + Firebase), fetches the Vosk model, converts the logo and builds the icon.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -40,7 +40,7 @@ GRADLE
   fi
 fi
 
-echo "==> Firebase (email login)"
+echo "==> Firebase (email login + Google sign-in)"
 if [ -f android/app/google-services.json ]; then
   python3 - <<'PY'
 import os, re
@@ -88,6 +88,16 @@ for p in ("android/app/build.gradle.kts", "android/app/build.gradle"):
 PY
   grep -q "google-services" android/settings.gradle* && grep -q "google-services" android/app/build.gradle* \
     && echo "Firebase plugin applied" || echo "WARNING: could not patch Firebase plugin (email login will be hidden)"
+  python3 - <<'PY'
+import json
+j = json.load(open("android/app/google-services.json"))
+pk = [c["client_info"]["android_client_info"]["package_name"] for c in j["client"]]
+print("google-services.json packages:", pk)
+if "com.aegis.assistant" not in pk:
+    print("WARNING: package com.aegis.assistant is NOT in google-services.json (check spelling!)")
+if not any(c.get("oauth_client") for c in j["client"]):
+    print("WARNING: no OAuth client in google-services.json (add SHA-1 + enable Google sign-in, then re-download)")
+PY
 else
   echo "android/app/google-services.json not found - email login will be hidden"
 fi
@@ -108,6 +118,24 @@ subprojects {
 GRADLE
   fi
 done
+
+echo "==> App logo (any .jpg/.jpeg in assets/images is converted to aegis_logo.png)"
+LOGO_SRC="$(ls assets/images/*.jpg assets/images/*.jpeg 2>/dev/null | head -n 1 || true)"
+if [ -n "$LOGO_SRC" ]; then
+  echo "Converting $LOGO_SRC"
+  if command -v convert >/dev/null 2>&1; then
+    convert "$LOGO_SRC" -resize 1024x1024 assets/images/aegis_logo.png
+  elif command -v magick >/dev/null 2>&1; then
+    magick "$LOGO_SRC" -resize 1024x1024 assets/images/aegis_logo.png
+  else
+    python3 -m pip install --quiet --break-system-packages pillow
+    LOGO_SRC="$LOGO_SRC" python3 - <<'PY'
+import os
+from PIL import Image
+Image.open(os.environ["LOGO_SRC"]).convert("RGB").resize((1024, 1024)).save("assets/images/aegis_logo.png")
+PY
+  fi
+fi
 
 echo "==> Vosk wake-word model"
 MODEL_DIR=android/app/src/main/assets/model
