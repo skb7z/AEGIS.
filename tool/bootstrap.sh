@@ -92,6 +92,23 @@ else
   echo "android/app/google-services.json not found - email login will be hidden"
 fi
 
+echo "==> Disabling Android lint (not needed for the APK, crashes on some plugin sources)"
+for f in android/build.gradle.kts android/build.gradle; do
+  if [ -f "$f" ] && ! grep -q "aegis-lint-off" "$f"; then
+    cat >> "$f" <<'GRADLE'
+
+// aegis-lint-off
+subprojects {
+    tasks.configureEach {
+        if (name.startsWith("lintVital") || name.startsWith("lintAnalyze") || name.startsWith("lintReport")) {
+            enabled = false
+        }
+    }
+}
+GRADLE
+  fi
+done
+
 echo "==> Vosk wake-word model"
 MODEL_DIR=android/app/src/main/assets/model
 if [ ! -f "$MODEL_DIR/conf/model.conf" ]; then
