@@ -98,8 +98,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (c) => AlertDialog(
         title: Text(_t('সাইন আউট করবেন?', 'Sign out?')),
-        content: Text(_t('Drive-এ সেভ করা ডেটা থেকে যাবে। আবার সাইন ইন করলে ফিরে পাবেন।',
-            'Your data stays safe in Drive. Sign in again to get it back.')),
+        content: Text(_t('Google Drive-এ সেভ করা ডেটা থেকে যাবে। আবার সাইন ইন করলে ফিরে পাবেন।',
+            'Data saved in Google Drive stays safe. Sign in again to get it back.')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c, false), child: Text(_t('না', 'Cancel'))),
           TextButton(onPressed: () => Navigator.pop(c, true), child: Text(_t('সাইন আউট', 'Sign out'))),
@@ -173,8 +173,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 if (signedIn) {
                   _push(const ProfileScreen());
                 } else {
-                  _snack(_t('প্রোফাইল বানাতে আগে Google দিয়ে সাইন ইন করুন।',
-                      'Sign in with Google first to create a profile.'));
+                  _snack(_t('প্রোফাইল বানাতে আগে সাইন ইন করুন।',
+                      'Sign in first to create a profile.'));
                 }
               },
             ),
@@ -230,6 +230,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         final pal = AegisPalette.byId(S.settings.themeId);
         final s = S.settings;
         final signedIn = S.auth.status == AuthStatus.signedIn;
+        final drive = S.auth.canUseDrive;
         return Scaffold(
           appBar: AppBar(title: Text(_t('সেটিংস', 'Settings'))),
           body: ListView(
@@ -362,8 +363,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 builder: (context, v, _) => ListTile(
                   leading: const Icon(Icons.cloud_sync_rounded),
                   title: Text(_t('Google Drive সিঙ্ক', 'Google Drive sync')),
-                  subtitle: Text(signedIn ? v : _t('শুধু এই ফোনে (সাইন ইন করলে Drive-এ সেভ হবে)', 'This phone only (sign in to save to Drive)')),
-                  trailing: signedIn
+                  subtitle: Text(drive
+                      ? v
+                      : (signedIn
+                          ? _t('এই অ্যাকাউন্টে ডেটা শুধু ফোনে থাকে। Drive ব্যাকআপের জন্য Google দিয়ে সাইন ইন করুন।',
+                              'Data stays on this phone for this account. Sign in with Google for Drive backup.')
+                          : _t('শুধু এই ফোনে (Google দিয়ে সাইন ইন করলে Drive-এ সেভ হবে)',
+                              'This phone only (sign in with Google to save to Drive)'))),
+                  isThreeLine: signedIn && !drive,
+                  trailing: drive
                       ? TextButton(onPressed: S.memory.sync, child: Text(_t('এখনই সিঙ্ক', 'Sync now')))
                       : null,
                 ),
