@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -23,7 +24,8 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   late final TextEditingController _nick = TextEditingController(text: S.settings.nickname);
 
-  String _t(String bn, String en) => S.settings.language == 'bn' ? bn : en;
+  /// Every text in the app follows the APP language (not the Aegis language).
+  String _t(String bn, String en) => S.settings.appLang == 'bn' ? bn : en;
 
   @override
   void dispose() {
@@ -71,22 +73,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _saveNick() async {
     final v = _nick.text.trim();
     if (v.isNotEmpty && !RegExp(r'^[A-Za-z]{2,20}$').hasMatch(v)) {
-      _snack(_t('ডাকনাম শুধু ইংরেজি অক্ষরে (২-২০টা) হতে হবে।',
-          'The nickname must be English letters only (2-20).'));
+      _snack(_t('এই নাম শুধু ইংরেজি অক্ষরে (২-২০টা) হতে হবে।',
+          'This name must be English letters only (2-20).'));
       return;
     }
     await S.assistant.setNickname(v);
     FocusManager.instance.primaryFocus?.unfocus();
     _snack(v.isEmpty
-        ? _t('ডাকনাম মুছে ফেলা হয়েছে।', 'Nickname removed.')
-        : _t('এখন "Aegis" বা "$v" বলে ডাকতে পারবেন।', 'You can now say "Aegis" or "$v".'));
+        ? _t('নাম মুছে ফেলা হয়েছে।', 'Name removed.')
+        : _t('এখন "Aegis" বা "$v" বলে ডাকলে সাড়া দেবে।', 'Aegis will now answer to "Aegis" or "$v".'));
   }
 
   Future<void> _signIn() async {
     final err = await S.auth.signIn();
     if (!mounted) return;
     if (err == null) {
-      // The profile form appears right after the first sign-in.
       Navigator.of(context).popUntil((r) => r.isFirst);
     } else if (err != 'cancelled') {
       _snack(_t('Google লগইন হয়নি।', 'Google sign-in failed.'));
@@ -156,10 +157,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 color: pal.accent, fontSize: 12.5, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
       );
 
+  ImageProvider? _avatarImage() {
+    final p = S.auth.profile.photo;
+    if (p.isNotEmpty) {
+      try {
+        return MemoryImage(base64Decode(p));
+      } catch (_) {}
+    }
+    final u = S.auth.user;
+    if (S.auth.status == AuthStatus.signedIn && S.auth.method == LoginMethod.google && u?.photo != null) {
+      return NetworkImage(u!.photo!);
+    }
+    return null;
+  }
+
   Widget _profileHeader(AegisPalette pal) {
     final signedIn = S.auth.status == AuthStatus.signedIn;
     final u = S.auth.user;
     final name = signedIn ? (S.auth.callName.isEmpty ? (u?.name ?? '') : S.auth.callName) : '';
+    final img = _avatarImage();
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
       child: Column(
@@ -173,8 +189,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 if (signedIn) {
                   _push(const ProfileScreen());
                 } else {
-                  _snack(_t('প্রোফাইল বানাতে আগে সাইন ইন করুন।',
-                      'Sign in first to create a profile.'));
+                  _snack(_t('প্রোফাইল বানাতে আগে সাইন ইন করুন।', 'Sign in first to create a profile.'));
                 }
               },
             ),
@@ -191,8 +206,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 CircleAvatar(
                   radius: 30,
                   backgroundColor: pal.accent.op(.2),
-                  backgroundImage: signedIn && u?.photo != null ? NetworkImage(u!.photo!) : null,
-                  child: signedIn && u?.photo != null
+                  backgroundImage: signedIn ? img : null,
+                  child: signedIn && img != null
                       ? null
                       : Icon(Icons.person_rounded, color: pal.accent, size: 32),
                 ),
@@ -277,20 +292,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
 
-              // ------------------------------------------------ voice & language
-              _title(_t('ভয়েস ও ভাষা', 'VOICE & LANGUAGE'), pal),
-              SwitchListTile(
-                secondary: const Icon(Icons.record_voice_over_rounded),
-                title: Text(s.male ? _t('পুরুষ কণ্ঠ', 'Male voice') : _t('মহিলা কণ্ঠ', 'Female voice')),
-                subtitle: Text(_t('এক ট্যাপে ছেলে/মেয়ে কণ্ঠ বদলান', 'One-tap voice switch')),
-                value: s.male,
-                onChanged: (v) async {
-                  await s.setMale(v);
-                  S.assistant.previewVoice();
-                },
+              // ------------------------------------------------ languages
+              _title(_t('ভাষা', 'LANGUAGE'), pal),
+              ListTile(
+                leading: const Icon(Icons.translate_rounded),
+                title: Text(_t('অ্যাপের ভাষা', 'App language')),
+                subtitle: Text(_t('মেনু, বাটন আর সেটিংসের সব লেখা', 'Menus, buttons and all settings text')),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: SegmentedButton<String>(
+                  showSelectedIcon: true,
+                  segments: const [
+                    ButtonSegment(value: 'en', label: Text('English')),
+                    ButtonSegment(value: 'bn', label: Text('বাংলা')),
+                  ],
+                  selected: {s.appLang},
+                  onSelectionChanged: (v) => s.setAppLang(v.first),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.record_voice_over_rounded),
+                title: Text(_t('Aegis-এর ভাষা', 'Aegis language')),
+                subtitle: Text(_t('Aegis যে ভাষায় শোনে ও উত্তর দেয়', 'The language Aegis listens and answers in')),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                 child: SegmentedButton<String>(
                   showSelectedIcon: true,
                   segments: const [
@@ -301,6 +328,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onSelectionChanged: (v) => s.setLanguage(v.first),
                 ),
               ),
+
+              // ------------------------------------------------ voice
+              _title(_t('ভয়েস', 'VOICE'), pal),
+              SwitchListTile(
+                secondary: const Icon(Icons.volume_up_rounded),
+                title: Text(s.male ? _t('পুরুষ কণ্ঠ', 'Male voice') : _t('মহিলা কণ্ঠ', 'Female voice')),
+                subtitle: Text(_t('এক ট্যাপে ছেলে/মেয়ে কণ্ঠ বদলান', 'One-tap voice switch')),
+                value: s.male,
+                onChanged: (v) async {
+                  await s.setMale(v);
+                  S.assistant.previewVoice();
+                },
+              ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
                 child: TextField(
@@ -309,12 +349,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   textInputAction: TextInputAction.done,
                   onSubmitted: (_) => _saveNick(),
                   decoration: InputDecoration(
-                    labelText: _t('ডাকনাম (ইংরেজিতে)', 'Nickname (English)'),
+                    labelText: _t('Aegis-কে ডাকার নাম', 'Name to call Aegis'),
                     helperText: _t(
-                        'যেমন: buddy, friday। "Aegis" বা এই নামে ডাকলেই সাড়া দেবে।',
-                        'e.g. buddy, friday. Aegis answers to "Aegis" or this name.'),
-                    helperMaxLines: 2,
-                    prefixIcon: const Icon(Icons.record_voice_over_outlined),
+                        'এটা আপনার নিজের নাম না। "Aegis" বা এই নাম বললে Aegis সাড়া দেবে। যেমন: buddy, friday (ইংরেজি অক্ষরে)।',
+                        'This is NOT your own name. Aegis wakes up when you say "Aegis" or this name, e.g. buddy, friday (English letters).'),
+                    helperMaxLines: 3,
+                    prefixIcon: const Icon(Icons.campaign_outlined),
                     suffixIcon: IconButton(icon: const Icon(Icons.check_rounded), onPressed: _saveNick),
                   ),
                 ),
