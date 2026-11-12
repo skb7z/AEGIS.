@@ -14,7 +14,13 @@ class AppSettings extends ChangeNotifier {
   double get blur => _p.getDouble('blur') ?? 40; // 0..100
   double get blurSigma => blur * 0.3;
   bool get male => _p.getBool('male') ?? true;
-  String get language => _p.getString('lang') == 'en' ? 'en' : 'bn'; // bn | en
+
+  /// Language Aegis listens and speaks in: 'bn' | 'en'.
+  String get language => _p.getString('lang') == 'en' ? 'en' : 'bn';
+
+  /// Language of every text in the app (menus, buttons): 'en' | 'bn'. Default English.
+  String get appLang => _p.getString('app_lang') == 'bn' ? 'bn' : 'en';
+
   bool get wake => _p.getBool('wake') ?? false; // master ON/OFF, survives restarts
   bool get announce => _p.getBool('announce') ?? false;
   bool get autostartDone => _p.getBool('autostart_done') ?? false;
@@ -47,6 +53,11 @@ class AppSettings extends ChangeNotifier {
 
   Future<void> setLanguage(String v) async {
     await _p.setString('lang', v);
+    notifyListeners();
+  }
+
+  Future<void> setAppLang(String v) async {
+    await _p.setString('app_lang', v);
     notifyListeners();
   }
 
@@ -84,6 +95,7 @@ class AppSettings extends ChangeNotifier {
         'blur': blur,
         'male': male,
         'lang': language,
+        'appLang': appLang,
         'announce': announce,
         'whitelist': whitelist.toList()..sort(),
         'nickname': nickname,
@@ -94,6 +106,7 @@ class AppSettings extends ChangeNotifier {
     if (m['blur'] is num) await _p.setDouble('blur', (m['blur'] as num).toDouble().clamp(0, 100).toDouble());
     if (m['male'] is bool) await _p.setBool('male', m['male'] as bool);
     if (m['lang'] is String) await _p.setString('lang', m['lang'] as String);
+    if (m['appLang'] is String) await _p.setString('app_lang', m['appLang'] as String);
     if (m['announce'] is bool) await _p.setBool('announce', m['announce'] as bool);
     if (m['whitelist'] is List) {
       await _p.setStringList('whitelist', (m['whitelist'] as List).map((e) => '$e').toList());
