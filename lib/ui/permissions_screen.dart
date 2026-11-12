@@ -54,9 +54,11 @@ class _PermissionsScreenState extends State<PermissionsScreen> with WidgetsBindi
   bool _running = false;
   Completer<void>? _resume;
 
-  String _t(String bn, String en) => S.settings.language == 'bn' ? bn : en;
+  String _t(String bn, String en) => S.settings.appLang == 'bn' ? bn : en;
 
   List<_Step> get _steps => _all.where((s) => s.id != 'restricted' || _sdk >= 33).toList();
+
+  bool get _allOk => _ok.isNotEmpty && _steps.every((s) => _ok[s.id] == true);
 
   @override
   void initState() {
@@ -155,14 +157,30 @@ class _PermissionsScreenState extends State<PermissionsScreen> with WidgetsBindi
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [
-          FilledButton.icon(
-            onPressed: _running ? null : _guided,
-            icon: _running
-                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.playlist_add_check_rounded),
-            label: Text(_t('ধাপে ধাপে সেটআপ শুরু করুন', 'Run guided setup')),
-          ),
-          const SizedBox(height: 12),
+          if (_allOk)
+            Card(
+              color: pal.listen.op(.14),
+              elevation: 0,
+              margin: const EdgeInsets.only(bottom: 12),
+              child: ListTile(
+                leading: Icon(Icons.verified_rounded, color: pal.listen, size: 30),
+                title: Text(_t('সব সেটআপ সম্পূর্ণ', 'All set'),
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
+                subtitle: Text(_t('সব পারমিশন দেওয়া আছে। আর কিছু করতে হবে না।',
+                    'Every permission is granted. Nothing more to do.')),
+              ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: FilledButton.icon(
+                onPressed: _running ? null : _guided,
+                icon: _running
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.playlist_add_check_rounded),
+                label: Text(_t('ধাপে ধাপে সেটআপ শুরু করুন', 'Run guided setup')),
+              ),
+            ),
           for (final s in _steps)
             Card(
               color: pal.surface,
@@ -206,14 +224,14 @@ class _PermissionsScreenState extends State<PermissionsScreen> with WidgetsBindi
             elevation: 0,
             child: ListTile(
               leading: const Icon(Icons.info_outline_rounded),
-              title: Text(_t('কোনো বাটনে কাজ না হলে', 'If a button does nothing')),
+              title: Text(_t('App info-তে সব পারমিশন কেন নেই?', 'Why are some permissions missing in App info?')),
               subtitle: Text(_t(
-                  'আপনার ফোনের নিজস্ব সেটিংস খুলতে না পারলে App info পেজ খুলবে। সেখান থেকে Permissions, Battery আর Autostart ম্যানুয়ালি দিন।',
-                  'If your phone has no direct screen for it, the App info page opens instead. Set Permissions, Battery and Autostart there manually.')),
+                  'শুধু মাইক্রোফোন আর নোটিফিকেশনের মতো সাধারণ পারমিশন App info → Permissions-এ দেখায়। ওভারলে, অ্যাক্সেসিবিলিটি, নোটিফিকেশন অ্যাক্সেস, ব্যাটারি আর অটো-স্টার্ট Android-এর আলাদা "বিশেষ অ্যাক্সেস" পেজে থাকে, তাই ওগুলো এই পেজ থেকেই দিতে হবে।',
+                  'Only normal permissions like Microphone and Notifications appear under App info → Permissions. Overlay, Accessibility, Notification access, Battery and Auto-start are Android "special access" pages, so grant those from this screen.')),
               isThreeLine: true,
               trailing: TextButton(
                 onPressed: () => S.native.openSetting('appinfo'),
-                child: Text(_t('App info', 'App info')),
+                child: const Text('App info'),
               ),
             ),
           ),
