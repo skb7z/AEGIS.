@@ -21,24 +21,41 @@ class AegisUser {
   final String? photo;
 }
 
-/// Name, age, gender, country - editable from Settings.
+/// Name, age, gender, country + a small profile photo (base64 JPEG). Editable from Settings.
 class AegisProfile {
-  const AegisProfile({this.name = '', this.age, this.gender = '', this.country = ''});
+  const AegisProfile({
+    this.name = '',
+    this.age,
+    this.gender = '',
+    this.country = '',
+    this.photo = '',
+  });
   final String name;
   final int? age;
   final String gender; // male | female
   final String country;
+  final String photo; // base64, empty = none
 
   bool get complete =>
       name.trim().isNotEmpty && age != null && gender.isNotEmpty && country.trim().isNotEmpty;
 
-  Map<String, dynamic> toJson() => {'n': name, 'a': age, 'g': gender, 'c': country};
+  AegisProfile copyWith({String? name, int? age, String? gender, String? country, String? photo}) =>
+      AegisProfile(
+        name: name ?? this.name,
+        age: age ?? this.age,
+        gender: gender ?? this.gender,
+        country: country ?? this.country,
+        photo: photo ?? this.photo,
+      );
+
+  Map<String, dynamic> toJson() => {'n': name, 'a': age, 'g': gender, 'c': country, 'p': photo};
 
   static AegisProfile fromJson(Map<String, dynamic> j) => AegisProfile(
         name: '${j['n'] ?? ''}',
         age: j['a'] is int ? j['a'] as int : int.tryParse('${j['a']}'),
         gender: '${j['g'] ?? ''}',
         country: '${j['c'] ?? ''}',
+        photo: '${j['p'] ?? ''}',
       );
 }
 
@@ -85,6 +102,9 @@ class AuthService extends ChangeNotifier {
   LoginMethod method = LoginMethod.none;
   AegisUser? user;
   AegisProfile profile = const AegisProfile();
+
+  /// Technical detail of the last failed Google sign-in (shown under the error, e.g. "ApiException: 10").
+  String lastError = '';
 
   /// Drive backup works only with a Google sign-in.
   bool get canUseDrive => status == AuthStatus.signedIn && method == LoginMethod.google;
@@ -178,8 +198,9 @@ class AuthService extends ChangeNotifier {
 
   // ---------------------------------------------------------------- Google
 
-  /// Returns an error code or null on success.
+  /// Returns an error code or null on success. On failure see [lastError] for the real reason.
   Future<String?> signIn() async {
+    lastError = '';
     try {
       final a = await _g.signIn();
       if (a == null) return 'cancelled';
@@ -192,6 +213,10 @@ class AuthService extends ChangeNotifier {
       return null;
     } catch (e) {
       debugPrint('signIn: $e');
+      final s = '$e';
+      // e.g. "PlatformException(sign_in_failed, ... ApiException: 10 ...)" -> keep it short
+      final m = RegExp(r'ApiException:?\s*\d+[^,)]*').firstMatch(s);
+      lastError = m != null ? m.group(0)! : (s.length > 120 ? s.substring(0, 120) : s);
       return 'failed';
     }
   }
