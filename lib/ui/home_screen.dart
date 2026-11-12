@@ -18,7 +18,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _text = TextEditingController();
 
-  String _t(String bn, String en) => S.settings.language == 'bn' ? bn : en;
+  String _t(String bn, String en) => S.settings.appLang == 'bn' ? bn : en;
 
   @override
   void dispose() {
